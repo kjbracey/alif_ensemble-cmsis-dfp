@@ -33,11 +33,13 @@
 /**
  * @brief  Load the MPU regions from the given table
  * @note   This function loads the region and also sets the
- *         attrbutes for the regions.
+ *         attributes for the regions. Setting this function as weak,
+ *         so that User can override from application.
  * @param  None
  * @retval None
  */
-static void MPU_Load_Regions(void)
+__attribute__ ((weak))
+void MPU_Load_Regions(void)
 {
     static const ARM_MPU_Region_t mpu_table[] __STARTUP_RO_DATA_ATTRIBUTE = {
          {
@@ -48,7 +50,9 @@ static void MPU_Load_Regions(void)
     };
 
     /* Define the possible Attribute regions */
-     ARM_MPU_SetMemAttr(0UL, ARM_MPU_ATTR_DEVICE); /* Attr0, Device Memory */
+    ARM_MPU_SetMemAttr(0UL, ARM_MPU_ATTR(   /* Attr0, Device Memory */
+                            ARM_MPU_ATTR_DEVICE,
+                            ARM_MPU_ATTR_DEVICE_nGnRE));
 
     /* Load the regions from the table */
     ARM_MPU_Load(0U, &mpu_table[0], 1U);

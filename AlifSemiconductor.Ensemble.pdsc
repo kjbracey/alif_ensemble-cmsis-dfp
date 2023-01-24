@@ -13,6 +13,11 @@
   -->
 
   <releases>
+      <release version="0.5.1" date="2023-01-09">
+	- Fixed mpu setting function attributes 
+	- Update gcc ld scripts
+	- Fixed some minor issues 
+      </release>
       <release version="0.5.0" date="2023-01-09">
 	- Update device drivers and example applications
 	- Update device statup codes

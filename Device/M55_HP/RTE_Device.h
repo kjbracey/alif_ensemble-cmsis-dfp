@@ -13,7 +13,7 @@
 #ifndef __RTE_DEVICE_H
 #define __RTE_DEVICE_H
 
-// <e> SILICON_REV_A  (Silicon Revison)
+// <e> SILICON_REV_A  (Silicon Revision)
 // <i> Select if the Chip Silicon Rev is Ax
 #define RTE_SILICON_REV_A 	1
 #if RTE_SILICON_REV_A
@@ -23,7 +23,7 @@
 #else
 #define RTE_SILICON_REV_B0	1
 #endif
-// </e> SILICON_REV_A  (Silicon Revison)
+// </e> SILICON_REV_A  (Silicon Revision)
 
 // <e> FLASH_MRAM (Flash MRAM) [Driver_FLASH_MRAM]
 // <i> Configuration settings for Driver_FLASH_MRAM in component ::Drivers:FLASH_MRAM
@@ -1536,7 +1536,7 @@
 #define RTE_ADC_CONFG_RESERVED_bits_18_23           7
 #define RTE_ADC_CONFG_amux_cont                     0
 #endif
-// </e> ADC commmon bit for each instance
+// </e> ADC common bit for each instance
 
 // <e> CRC0 (Cyclic Redundancy Check) [Driver_CRC0]
 // <i> Configuration settings for Driver_CRC0 in component ::Drivers:CRC
@@ -1819,7 +1819,7 @@
 #define RTE_CMP_NEGATIVE_DAC6        3
 
 #endif
-// </e> Comparator commmon bit for each instance
+// </e> Comparator common bit for each instance
 
 // <e> I2C (Inter Integrated Circuit) [Driver_I2C0]
 // <i> Configuration settings for Driver_I2C0 in component ::Drivers:I2C

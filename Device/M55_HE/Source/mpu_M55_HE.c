@@ -33,14 +33,17 @@
 /**
  * @brief  Load the MPU regions from the given table
  * @note   This function loads the region and also sets the
- *         attrbutes for the regions.
+ *         attributes for the regions. Setting this function as weak,
+ *         so that User can override from application.
  * @param  None
  * @retval None
  */
-static void MPU_Load_Regions(void)
+__attribute__ ((weak))
+void MPU_Load_Regions(void)
 {
     static const ARM_MPU_Region_t mpu_table[] __STARTUP_RO_DATA_ATTRIBUTE = {
-        {   /* EXTSYS0 TCM */
+        {   /* EXTSYS0 TCM : This should be added based on the Device and application
+                              requirements. */
             .RBAR = ARM_MPU_RBAR(0x50000000UL, ARM_MPU_SH_OUTER, 0UL, 1UL, 1UL),
             .RLAR = ARM_MPU_RLAR(0x50FFFFFFUL, 0UL)
         },
@@ -53,9 +56,12 @@ static void MPU_Load_Regions(void)
 
     /* Define the possible Attribute regions */
     ARM_MPU_SetMemAttr(0UL, ARM_MPU_ATTR( /* Attr0, Normal Memory, Non-Cacheable */
-        ARM_MPU_ATTR_NON_CACHEABLE,
-        ARM_MPU_ATTR_NON_CACHEABLE) );
-    ARM_MPU_SetMemAttr(1UL, ARM_MPU_ATTR_DEVICE); /* Attr1, Device Memory */
+                            ARM_MPU_ATTR_NON_CACHEABLE,
+                            ARM_MPU_ATTR_NON_CACHEABLE));
+
+    ARM_MPU_SetMemAttr(1UL, ARM_MPU_ATTR(   /* Attr1, Device Memory */
+                            ARM_MPU_ATTR_DEVICE,
+                            ARM_MPU_ATTR_DEVICE_nGnRE));
 
     /* Load the regions from the table */
     ARM_MPU_Load(0U, &mpu_table[0], 2U);

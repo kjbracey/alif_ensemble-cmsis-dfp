@@ -36,7 +36,7 @@ static const struct mem_region ns_regions[] __STARTUP_RO_DATA_ATTRIBUTE = {
   TGU setup function. Marks single memory region starting at NS_REGION_1_BASE
   and ending at NS_REGION_1_END as Non Secure in the TGU look up tables. The
   region should be in the DTCM area. Can be extended to include the ITCM region
-  and multiple discontigous regions if needed.
+  and multiple discontiguous regions if needed.
  *----------------------------------------------------------------------------*/
 void TGU_Setup(void)
 {
