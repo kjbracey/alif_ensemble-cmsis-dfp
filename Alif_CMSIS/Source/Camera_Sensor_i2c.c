@@ -34,6 +34,18 @@
  */
 #define DELAY_mSEC(msec)       PMU_delay_loop_us(msec * 1000)
 
+//#include <stdio.h>
+//#define DEBUG_PRINTF printf
+#define DEBUG_PRINTF(...) (0)
+
+#if TARGET_BOARD == BOARD_AppKit_Alpha1
+#define USE_I2C_GPIO_BITBANG
+#endif
+
+#ifdef USE_I2C_GPIO_BITBANG
+#include "drv_i2c_bitbang.h"
+#else
+
 /* @Note: i3c has only one instance i3c0,
  *        which can be used for i2c and i3c.
  */
@@ -123,6 +135,7 @@ static int32_t camera_sensor_i3c_driver_err(CAMERA_SENSOR_I3C_DRIVER_ERROR i3c_d
   ret = ARM_DRIVER_ERROR;
   return ret;
 }
+#endif
 
 /**
   \fn           int32_t camera_sensor_i2c_init(CAMERA_SENSOR_SLAVE_I2C_CONFIG *i2c)
@@ -144,6 +157,9 @@ int32_t camera_sensor_i2c_init(CAMERA_SENSOR_SLAVE_I2C_CONFIG *i2c)
 {
   int32_t ret = 0;
 
+#ifdef USE_I2C_GPIO_BITBANG
+  i2c_init();
+#else
   /* @Note: i3c has only one instance i3c0,
    *        which can be used for i2c and i3c.
    */
@@ -190,6 +206,7 @@ int32_t camera_sensor_i2c_init(CAMERA_SENSOR_SLAVE_I2C_CONFIG *i2c)
   ret = I3Cdrv->AttachI2Cdev(i2c->cam_sensor_slave_addr);
   if(ret != ARM_DRIVER_OK)
     return (camera_sensor_i3c_driver_err(CAMERA_SENSOR_I3C_DRIVER_ERROR_POWEROFF,0));
+#endif
 
   return ARM_DRIVER_OK;
 }
@@ -221,6 +238,7 @@ int32_t camera_sensor_i2c_write(CAMERA_SENSOR_SLAVE_I2C_CONFIG *i2c,
                                 uint32_t                        reg_value,
                                 CAMERA_SENSOR_I2C_REG_SIZE      reg_size)
 {
+  uint8_t dev_addr = i2c->cam_sensor_slave_addr;
   uint8_t addr_low  = reg_addr & 0xFF;
   uint8_t addr_high = (reg_addr >> 8) & 0xFF;
   uint8_t addr_len  = 0;
@@ -326,6 +344,9 @@ int32_t camera_sensor_i2c_write(CAMERA_SENSOR_SLAVE_I2C_CONFIG *i2c,
     temp >>= 8;
   }
 
+#ifdef USE_I2C_GPIO_BITBANG
+  ret = i2c_master_WriteData(dev_addr, tx_data, data_len);
+#else
   /* clear i3c callback completion flag. */
   CB_XferCompletionFlag = 0;
 
@@ -355,6 +376,25 @@ int32_t camera_sensor_i2c_write(CAMERA_SENSOR_SLAVE_I2C_CONFIG *i2c,
   /* return error, if received transfer error. */
   if(CB_XferCompletionFlag == CB_XferErr)
     return ARM_DRIVER_ERROR;
+#endif
+
+    if (ret == 0) {
+        /* TX Success: Got ACK from slave */
+        DEBUG_PRINTF(">> I2C Master Transmit Success: Got ACK from slave addr: 0x%X\n", dev_addr);
+        if (data_len) {
+            DEBUG_PRINTF("\twrote %d bytes to reg addr: 0x%X\n", data_len, reg_addr);
+            DEBUG_PRINTF("\tTransmited Data to slave: 0x");
+            for (i = 0; i < data_len; i++) {
+                DEBUG_PRINTF("%02X", tx_data[i]);
+            }
+            DEBUG_PRINTF("\n");
+        } else {
+            DEBUG_PRINTF("\treading from reg addr: 0x%X\n", reg_addr);
+        }
+    } else {
+        /* TX Error: Got NACK from slave */
+        DEBUG_PRINTF(">> I2C Master Transmit Error: Got NACK from slave addr: 0x%X\n", dev_addr);
+    }
 
   /* received transfer success. */
   return ARM_DRIVER_OK;
@@ -392,6 +432,7 @@ int32_t camera_sensor_i2c_read(CAMERA_SENSOR_SLAVE_I2C_CONFIG *i2c,
                                uint32_t                       *reg_value,
                                CAMERA_SENSOR_I2C_REG_SIZE      reg_size)
 {
+  uint8_t dev_addr = i2c->cam_sensor_slave_addr;
   uint8_t addr_low  = reg_addr & 0xFF;
   uint8_t addr_high = (reg_addr >> 8) & 0xFF;
   uint8_t addr_len  = 0;
@@ -499,6 +540,9 @@ int32_t camera_sensor_i2c_read(CAMERA_SENSOR_SLAVE_I2C_CONFIG *i2c,
   /* transmit register location, data length is only register address type. */
   data_len = addr_len;
 
+#ifdef USE_I2C_GPIO_BITBANG
+  ret = i2c_master_WriteData(dev_addr, tx_data, data_len);
+#else
   /* clear i3c callback completion flag. */
   CB_XferCompletionFlag = 0;
 
@@ -528,13 +572,34 @@ int32_t camera_sensor_i2c_read(CAMERA_SENSOR_SLAVE_I2C_CONFIG *i2c,
   /* return error, if received transfer error. */
   if(CB_XferCompletionFlag == CB_XferErr)
     return ARM_DRIVER_ERROR;
+#endif
 
+    if (ret == 0) {
+        /* TX Success: Got ACK from slave */
+        DEBUG_PRINTF(">> I2C Master Transmit Success: Got ACK from slave addr: 0x%X\n", dev_addr);
+        if (data_len) {
+            DEBUG_PRINTF("\twrote %d bytes to reg addr: 0x%X\n", data_len, reg_addr);
+            DEBUG_PRINTF("\tTransmited Data to slave: 0x");
+            for (i = 0; i < data_len; i++) {
+                DEBUG_PRINTF("%02X", tx_data[i]);
+            }
+            DEBUG_PRINTF("\n");
+        } else {
+            DEBUG_PRINTF("\treading from reg addr: 0x%X\n", reg_addr);
+        }
+    } else {
+        /* TX Error: Got NACK from slave */
+        DEBUG_PRINTF(">> I2C Master Transmit Error: Got NACK from slave addr: 0x%X\n", dev_addr);
+    }
 
   /* received transfer success.
    * now, read from register address location.
    * data length will be register address size. */
   data_len = reg_size;
 
+#ifdef USE_I2C_GPIO_BITBANG
+  ret = i2c_master_ReadData(dev_addr, rx_data, data_len);
+#else
   /* clear i3c callback completion flag. */
   CB_XferCompletionFlag = 0;
 
@@ -564,6 +629,21 @@ int32_t camera_sensor_i2c_read(CAMERA_SENSOR_SLAVE_I2C_CONFIG *i2c,
   /* return error, if received transfer error. */
   if(CB_XferCompletionFlag == CB_XferErr)
     return ARM_DRIVER_ERROR;
+#endif
+
+    if (ret == 0) {
+        /* RX Success: Got ACK from slave */
+        DEBUG_PRINTF(">> I2C Master Receive Success: Got ACK from slave addr: 0x%X\n", dev_addr);
+        DEBUG_PRINTF("\tread %d bytes from reg addr: 0x%X\n", data_len, reg_addr);
+        DEBUG_PRINTF("\tReceived Data from slave: 0x");
+        for (i = 0; i < data_len; i++) {
+            DEBUG_PRINTF("%02X", rx_data[i]);
+        }
+        DEBUG_PRINTF("\n");
+    } else {
+        /* RX Error: Got NACK from slave */
+        DEBUG_PRINTF(">> I2C Master Receive Error: Got NACK from slave addr: 0x%X\n", dev_addr);
+    }
 
   /* received transfer success.
    * now for Receive, Convert received data back from Big Endian to Little Endian. */
