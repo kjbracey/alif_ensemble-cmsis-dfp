@@ -1065,6 +1065,10 @@ static int32_t CAMERAx_Control(CAMERA_CTRL_DEV       *cam_ctrl,
       /* Camera Sensor configure*/
       cam_sensor_control = 1;
       break;
+    case CAMERA_SENSOR_GAIN:
+      /* Camera Sensor gain*/
+      ret = cam_sensor->Ops->Control(control, arg);
+      break;
     case CAMERA_EVENTS_CONFIGURE:
       cam_ctrl_enable_interrupt(cam_ctrl, arg);
       break;

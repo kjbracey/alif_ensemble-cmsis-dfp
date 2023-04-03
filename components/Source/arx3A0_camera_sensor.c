@@ -111,7 +111,7 @@ static int32_t ARX3A0_Bulk_Write_Reg(const ARX3A0_REG arx3A0_reg[],
 		ret = ARX3A0_WRITE_REG(arx3A0_reg[i].reg_addr, arx3A0_reg[i].reg_value, \
 				reg_size);
 		if(ret != ARM_DRIVER_OK)
-			return ARM_DRIVER_ERROR;
+			return ret;
 	}
 
 	return ARM_DRIVER_OK;
@@ -150,31 +150,31 @@ static int32_t ARX3A0_Camera_Hard_Reseten(void)
 
 	ret = GPIO_Driver_CAM->Initialize(RTE_ARX3A0_CAMERA_RESET_PIN_NO,NULL);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	ret = GPIO_Driver_CAM->PowerControl(RTE_ARX3A0_CAMERA_RESET_PIN_NO,  ARM_POWER_FULL);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	ret = GPIO_Driver_CAM->SetDirection(RTE_ARX3A0_CAMERA_RESET_PIN_NO, GPIO_PIN_DIRECTION_OUTPUT);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	ret = GPIO_Driver_CAM->SetValue(RTE_ARX3A0_CAMERA_RESET_PIN_NO, GPIO_PIN_OUTPUT_STATE_HIGH);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	ARX3A0_DELAY_uSEC(2000);
 
 	ret = GPIO_Driver_CAM->SetValue(RTE_ARX3A0_CAMERA_RESET_PIN_NO, GPIO_PIN_OUTPUT_STATE_LOW);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	ARX3A0_DELAY_uSEC(2000);
 
 	ret = GPIO_Driver_CAM->SetValue(RTE_ARX3A0_CAMERA_RESET_PIN_NO, GPIO_PIN_OUTPUT_STATE_HIGH);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	ARX3A0_DELAY_uSEC(100000);
 
@@ -193,7 +193,7 @@ static int32_t ARX3A0_Camera_Soft_Reseten(void)
 
 	ret = ARX3A0_WRITE_REG(ARX3A0_SOFTWARE_RESET_REGISTER, 0x01, 1);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	/* @Observation: more delay is required for Camera Sensor
 	 *               to setup after Soft Reset.
@@ -218,16 +218,13 @@ static int32_t ARX3A0_Camera_Soft_Reseten(void)
 static int32_t ARX3A0_Camera_Cfg(ARM_CAMERA_RESOLUTION cam_resolution)
 {
 	uint32_t total_num     = 0;
-	int32_t  ret = 0;
 
 	/* Configure Camera Sensor Resolution */
 	if(cam_resolution == CAMERA_RESOLUTION_560x560)
 	{
 		/* Camera Sensor Resolution: 560x560(WxH) */
 		total_num = (sizeof(arx3a0_560_regs) / sizeof(ARX3A0_REG));
-		ret = ARX3A0_Bulk_Write_Reg(arx3a0_560_regs, total_num, 2);
-		if(ret != ARM_DRIVER_OK)
-			return ARM_DRIVER_ERROR;
+		return ARX3A0_Bulk_Write_Reg(arx3a0_560_regs, total_num, 2);
 	}
 	else
 	{
@@ -259,7 +256,9 @@ int32_t ARX3A0_Init(ARM_CAMERA_RESOLUTION cam_resolution)
 	ARX3A0_Sensor_Clk_Src();
 
 	/*camera sensor resten*/
-	ARX3A0_Camera_Hard_Reseten();
+	ret = ARX3A0_Camera_Hard_Reseten();
+	if(ret != ARM_DRIVER_OK)
+		return ret;
 
 	/* Initialize i2c using i3c driver instance depending on
 	 *  ARX3A0 Camera Sensor specific i2c configurations
@@ -268,17 +267,17 @@ int32_t ARX3A0_Init(ARM_CAMERA_RESOLUTION cam_resolution)
 
 	ret = camera_sensor_i2c_init(&arx3A0_camera_sensor_i2c_cnfg);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	/* Soft Reset ARX3A0 Camera Sensor */
 	ret = ARX3A0_Camera_Soft_Reseten();
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	/* Read ARX3A0 Camera Sensor CHIP ID */
 	ret = ARX3A0_READ_REG(ARX3A0_CHIP_ID_REGISTER, &rcv_data, 2);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	/* Proceed only if CHIP ID is correct. */
 	if(rcv_data != ARX3A0_CHIP_ID_REGISTER_VALUE)
@@ -287,27 +286,27 @@ int32_t ARX3A0_Init(ARM_CAMERA_RESOLUTION cam_resolution)
 	/*Putting sensor in standby mode*/
 	ret = ARX3A0_WRITE_REG(ARX3A0_MODE_SELECT_REGISTER, 0x00, 1);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	ret = ARX3A0_READ_REG(ARX3A0_MIPI_CONFIG_REGISTER, &rcv_data, 2);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	ret = ARX3A0_WRITE_REG(ARX3A0_MIPI_CONFIG_REGISTER, rcv_data | (1U << 7), 2);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	/*start streaming*/
 	ret = ARX3A0_WRITE_REG(ARX3A0_MODE_SELECT_REGISTER, 0x01, 1);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	ARX3A0_DELAY_uSEC(50000);
 
 	/*stop streaming*/
 	ret = ARX3A0_WRITE_REG(ARX3A0_MODE_SELECT_REGISTER, 0x00, 1);
 	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
+		return ret;
 
 	/*Adding delay to finish streaming*/
 	ARX3A0_DELAY_uSEC(500000);
@@ -323,14 +322,8 @@ int32_t ARX3A0_Init(ARM_CAMERA_RESOLUTION cam_resolution)
   */
 int32_t ARX3A0_Start(void)
 {
-	int32_t ret = 0;
-
 	/* Start streaming */
-	ret = ARX3A0_WRITE_REG(ARX3A0_MODE_SELECT_REGISTER, 0x01, 1);
-	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
-
-	return ARM_DRIVER_OK;
+	return ARX3A0_WRITE_REG(ARX3A0_MODE_SELECT_REGISTER, 0x01, 1);
 }
 
 /**
@@ -341,14 +334,8 @@ int32_t ARX3A0_Start(void)
   */
 int32_t ARX3A0_Stop(void)
 {
-	int32_t ret = 0;
-
 	/* Suspend any stream */
-	ret = ARX3A0_WRITE_REG(ARX3A0_MODE_SELECT_REGISTER, 0x00, 1);
-	if(ret != ARM_DRIVER_OK)
-		return ARM_DRIVER_ERROR;
-
-	return ARM_DRIVER_OK;
+	return ARX3A0_WRITE_REG(ARX3A0_MODE_SELECT_REGISTER, 0x00, 1);
 }
 
 /**
@@ -360,19 +347,13 @@ int32_t ARX3A0_Stop(void)
   */
 int32_t ARX3A0_Control(uint32_t control, uint32_t arg)
 {
-	int32_t ret = 0;
-
 	switch (control)
 	{
 		case CAMERA_SENSOR_CONFIGURE:
-			ret = ARX3A0_Camera_Cfg((ARM_CAMERA_RESOLUTION)arg);
-			if(ret != ARM_DRIVER_OK)
-				return ARM_DRIVER_ERROR;
-			break;
+			return ARX3A0_Camera_Cfg((ARM_CAMERA_RESOLUTION)arg);
 		default:
 			return ARM_DRIVER_ERROR_PARAMETER;
 	}
-	return ARM_DRIVER_OK;
 }
 
 /**
