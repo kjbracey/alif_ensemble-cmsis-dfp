@@ -24,6 +24,7 @@
 /* Project Includes */
 #include "Driver_USART.h"
 #include "UART_dev.h"
+#include "cmsis_compiler.h"
 
 #if !(RTE_UART0 || RTE_UART1 || RTE_UART2 || RTE_UART3 || RTE_UART4 || RTE_UART5 || RTE_UART6 || RTE_UART7)
 #error "UART is not enabled in the RTE_Device.h"
@@ -544,6 +545,11 @@ static int32_t uart_enable_irq (uart_resources_t *uart,
 	if( (arg != UART_ENABLE_TRANSMITTER_INT) && (arg != UART_ENABLE_RECEIVER_INT) )
 		return ARM_DRIVER_ERROR_PARAMETER;
 
+       bool irqs_disabled = __get_PRIMASK() != 0;
+       if (!irqs_disabled) {
+           __disable_irq();
+       }
+
 	/* enable transmitter interrupt */
 	if(arg == UART_ENABLE_TRANSMITTER_INT)
 	{
@@ -583,8 +589,12 @@ static int32_t uart_enable_irq (uart_resources_t *uart,
 	}
 	/* else interrupt is already enabled. */
 
+       if (!irqs_disabled) {
+           __enable_irq();
+       }
 	return ARM_DRIVER_OK;
 }
+
 
 /**
  * @fn		static int32_t uart_disable_irq (uart_resources_t *uart,
@@ -606,6 +616,10 @@ static int32_t uart_disable_irq (uart_resources_t *uart,
 	if( (arg != UART_DISABLE_TRANSMITTER_INT) && (arg != UART_DISABLE_RECEIVER_INT) )
 		return ARM_DRIVER_ERROR_PARAMETER;
 
+       bool irqs_disabled = __get_PRIMASK() != 0;
+       if (!irqs_disabled) {
+           __disable_irq();
+       }
 	/* disable transmit interrupt */
 	if(arg == UART_DISABLE_TRANSMITTER_INT)
 	{
@@ -643,7 +657,9 @@ static int32_t uart_disable_irq (uart_resources_t *uart,
 			uart_info_ptr->int_status &= ~UART_FLAG_TX_OR_RX_INT_ENABLE;
 		}
 	}
-
+       if (!irqs_disabled) {
+           __enable_irq();
+       }
 	return ARM_DRIVER_OK;
 }
 
