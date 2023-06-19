@@ -166,6 +166,9 @@ void SystemInit (void)
 
   SystemCoreClock = SYSTEM_CLOCK;
 
+  // Enable Trace so PMU can be enabled
+  DCB->DEMCR |= DCB_DEMCR_TRCENA_Msk;
+
   //Enable the PMU
   ARM_PMU_Enable();
 
