@@ -59,6 +59,9 @@ static CAMERA_SENSOR_SLAVE_I2C_CONFIG arx3A0_camera_sensor_i2c_cnfg =
 	.cam_sensor_slave_reg_addr_type = CAMERA_SENSOR_I2C_REG_ADDR_TYPE_16BIT,
 };
 
+static uint32_t current_integration_time;
+static uint32_t max_integration_time;
+
 /* Wrapper function for Delay
  * Delay for microsecond:
  * Provide delay using PMU(Performance Monitoring Unit).
@@ -238,8 +241,13 @@ static int32_t ARX3A0_Camera_Cfg(ARM_CAMERA_RESOLUTION cam_resolution)
   \fn           int32_t ARX3A0_Camera_Gain(uint32_t gain)
   \brief        Set camera gain
   this function will
-  - configure Camera Sensor gain as per input parameter.
-  (currently supports only analogue gain control)
+  - configure Camera Sensor gain and integration time as per input parameter.
+
+  Gain 1 is the default integration time with camera gain set to 1.
+
+  For requested gain > 1, we use the default integration time and adjust the analogue+digital gain.
+  For requested gain < 1, we set gain to 1 and use a reduced integration time.
+
   \param[in]    gain    : gain value * 65536 (so 1.0 gain = 65536); 0 to read
 
   \return       \ref actual gain
@@ -249,8 +257,44 @@ static int32_t ARX3A0_Camera_Gain(const uint32_t gain)
 	uint32_t digital_gain;
 	uint32_t fine_gain = gain;
 	uint32_t coarse_gain;
+
+	if (max_integration_time == 0)
+	{
+		/* Record the integration time set by the configuration tables. We won't adjust it upwards, as it may
+		 * interfere with frame timing, but we can freely adjust it downwards.
+		 */
+		int32_t ret = ARX3A0_READ_REG(ARX3A0_COARSE_INTEGRATION_TIME_REGISTER, &current_integration_time, 2);
+		if (ret != 0)
+			return ret;
+
+		max_integration_time = current_integration_time;
+
+		/* Slight hackery - if this API is in use, assume the caller does not want the data pedestal - disable it */
+		uint32_t reset_register;
+		ret = ARX3A0_READ_REG(ARX3A0_RESET_REGISTER, &reset_register, 2);
+		if (ret != 0)
+			return ret;
+
+		/* Unlock the data pedestal setting */
+		ret = ARX3A0_WRITE_REG(ARX3A0_RESET_REGISTER, reset_register &~ 8, 2);
+		if (ret != 0)
+			return ret;
+
+		/* Set it to zero */
+		ret = ARX3A0_WRITE_REG(ARX3A0_DATA_PEDESTAL_REGISTER, 0, 2);
+		if (ret != 0)
+			return ret;
+
+		/* Restore the lock */
+		ret = ARX3A0_WRITE_REG(ARX3A0_RESET_REGISTER, reset_register, 2);
+		if (ret != 0)
+			return ret;
+	}
+
 	if (gain != 0)
 	{
+		/* Request to set gain */
+
 		/* From the Design Guide:
 		 *
 		 * Total Gain = (R0x305E[0:3]/16+1)*2^R0x0305E[4:6]*(R0x305E[7:15]/64)
@@ -261,15 +305,30 @@ static int32_t ARX3A0_Camera_Gain(const uint32_t gain)
 		 * First clamp analogue gain, using digital gain to get more if
 		 * necessary. Otherwise digital gain is used to fine adjust.
 		 */
+		uint32_t new_integration_time = max_integration_time;
 		if (gain < 0x10000)
 		{
 			/* Minimum gain is 1.0 */
 			fine_gain = 0x10000;
+
+			/* But we can lower integration time */
+			new_integration_time = (uint32_t) (((float) max_integration_time * gain) * 0x1p-16f + 0.5f);
 		}
 		else if (gain > 0x80000)
 		{
 			/* Maximum analogue gain is 8.0 */
 			fine_gain = 0x80000;
+		}
+
+		/* Set integration time */
+		if (new_integration_time != current_integration_time)
+		{
+			int32_t ret = ARX3A0_WRITE_REG(ARX3A0_COARSE_INTEGRATION_TIME_REGISTER, new_integration_time, 2);
+			if (ret != 0)
+			{
+				return ret;
+			}
+			current_integration_time = new_integration_time;
 		}
 
 		/*
@@ -311,14 +370,15 @@ static int32_t ARX3A0_Camera_Gain(const uint32_t gain)
 			/* Digital gain >= 1.0, as per discussion above */
 			digital_gain = 64;
 		}
-		int32_t ret = ARX3A0_WRITE_REG(0x305e, (digital_gain << 7) | (coarse_gain << 4) | fine_gain, 2);
+		int32_t ret = ARX3A0_WRITE_REG(ARX3A0_GLOBAL_GAIN_REGISTER, (digital_gain << 7) | (coarse_gain << 4) | fine_gain, 2);
 		if (ret != 0)
 			return ret;
 	}
 	else
 	{
+		/* Request to read current gain */
 		uint32_t reg_value;
-		int32_t ret = ARX3A0_READ_REG(0x305e, &reg_value, 2);
+		int32_t ret = ARX3A0_READ_REG(ARX3A0_GLOBAL_GAIN_REGISTER, &reg_value, 2);
 		if (ret != 0)
 			return ret;
 
@@ -328,7 +388,14 @@ static int32_t ARX3A0_Camera_Gain(const uint32_t gain)
 	}
 
 	// Fixed point factors of 16 and 64 in registers, so multiply by 64 to get our *0x10000 scale
-	return ((fine_gain + 16) << coarse_gain) * digital_gain * 64;
+	uint32_t resulting_gain = ((fine_gain + 16) << coarse_gain) * digital_gain * 64;
+
+	// And adjust for any reduction of integration time (in which case gain should be 0x10000 initially...)
+	if (current_integration_time != max_integration_time)
+	{
+		resulting_gain = (uint32_t) (((float) resulting_gain * current_integration_time) / max_integration_time + 0.5f);
+	}
+	return resulting_gain;
 }
 
 /**
@@ -407,6 +474,9 @@ int32_t ARX3A0_Init(ARM_CAMERA_RESOLUTION cam_resolution)
 
 	/*Adding delay to finish streaming*/
 	ARX3A0_DELAY_uSEC(500000);
+
+	/* Force re-reading of the registers */
+	max_integration_time = current_integration_time = 0;
 
 	return ARM_DRIVER_OK;
 }

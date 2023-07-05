@@ -49,6 +49,9 @@
 #define ARX3A0_MODE_SELECT_REGISTER                          0x0100
 #define ARX3A0_MIPI_CONFIG_REGISTER                          0x31BE
 #define ARX3A0_RESET_REGISTER                                0x301A
+#define ARX3A0_COARSE_INTEGRATION_TIME_REGISTER              0x3012
+#define ARX3A0_GLOBAL_GAIN_REGISTER                          0x305E
+#define ARX3A0_DATA_PEDESTAL_REGISTER                        0x301E
 
 /*Camera Sensor clock source register parameters*/
 #define ARX3A0_CLK_EN_Msk                                    1U
